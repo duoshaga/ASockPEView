@@ -1,0 +1,11 @@
+__pycache__/
+*.tmp
+.update.lock
+server*.log
+server.pid
+.venv/
+.cache/
+.env
+.env.*
+.DS_Store
+Thumbs.db

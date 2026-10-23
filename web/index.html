@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>中证全指 · 市盈率观察</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/plotly.min.js" defer></script>
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="page-header">
+        <div class="identity">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 28 28" fill="none"><path d="M5 21V11m9 10V5m9 16V9" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>
+          </span>
+          <span>市场估值观察<span class="brand-divider">/</span><span class="brand-detail">本机数据工作台</span></span>
+        </div>
+        <div class="live-badge"><span class="live-dot"></span>静态缓存 · 手动更新</div>
+      </header>
+
+      <section class="intro" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">CSI ALL SHARE · 000985</p>
+          <h1 id="page-title">中证全指<span>市盈率观察</span></h1>
+          <p class="intro-description">用历史分布，理解当下估值。展示中证官网滚动市盈率的本地缓存，点击按钮获取新数据。</p>
+        </div>
+        <a class="source-link" id="source-link" href="https://www.csindex.com.cn/" target="_blank" rel="noopener noreferrer">中证指数官网 <span aria-hidden="true">↗</span></a>
+      </section>
+
+      <section class="metrics" aria-label="最新估值概览">
+        <article class="metric-card primary-metric">
+          <div class="metric-label">最新可用市盈率 <span class="metric-tag">滚动 PE</span></div>
+          <div class="metric-value"><span id="latest-pe">—</span><span class="metric-unit">倍</span></div>
+          <p id="latest-pe-detail">正在读取本地数据</p>
+        </article>
+        <article class="metric-card">
+          <div class="metric-label">所选区间百分位</div>
+          <div class="metric-value"><span id="percentile">—</span><span class="metric-unit">%</span></div>
+          <p id="percentile-detail">依据区间内有效日度观测值计算</p>
+        </article>
+        <article class="metric-card date-metric">
+          <div class="metric-label">最新数据日期</div>
+          <div class="metric-value" id="latest-date">—</div>
+          <p id="coverage-detail">数据日期与抓取时间分别展示</p>
+        </article>
+      </section>
+
+      <section class="chart-panel" aria-labelledby="chart-title">
+        <div class="chart-heading">
+          <div>
+            <h2 id="chart-title">历史市盈率</h2>
+            <p id="range-description">近 10 年 · 中证官网滚动市盈率</p>
+          </div>
+          <div class="chart-actions">
+            <a class="button secondary-button" href="/history.csv" download="csi-000985-pe.csv" aria-label="下载完整历史数据 CSV">
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 3v9m-3-3 3 3 3-3M4 13v4h12v-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              下载 CSV
+            </a>
+            <button class="button refresh-button" id="refresh-button" type="button">
+              <svg class="refresh-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M16 8a6.2 6.2 0 0 0-10.8-2L3.5 8M4 12a6.2 6.2 0 0 0 10.8 2l1.7-2M3.5 3.5V8H8m8.5 8.5V12H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              <span id="refresh-label">手动更新数据</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="chart-controls">
+          <div class="range-control" role="group" aria-label="选择历史范围">
+            <button type="button" data-range="1" aria-pressed="false">1 年</button>
+            <button type="button" data-range="3" aria-pressed="false">3 年</button>
+            <button type="button" data-range="5" aria-pressed="false">5 年</button>
+            <button type="button" data-range="10" aria-pressed="true" class="is-active">10 年</button>
+            <button type="button" data-range="all" aria-pressed="false">全部</button>
+          </div>
+          <span class="chart-unit">市盈率 / 倍</span>
+        </div>
+
+        <div class="chart-container">
+          <div id="pe-chart" role="img" aria-label="中证全指历史滚动市盈率折线图"></div>
+          <div class="chart-placeholder" id="chart-placeholder" role="status">正在载入历史数据…</div>
+        </div>
+
+        <div class="chart-footer">
+          <div class="chart-legend" aria-label="图例">
+            <span><i class="legend-line pe-line"></i>滚动市盈率</span>
+            <span><i class="legend-line quantile-low"></i>20% 分位 <b id="q20">—</b></span>
+            <span><i class="legend-line quantile-mid"></i>50% 分位 <b id="q50">—</b></span>
+            <span><i class="legend-line quantile-high"></i>80% 分位 <b id="q80">—</b></span>
+          </div>
+          <p class="chart-hint">悬停查看日期与数值 · 拖动缩放 · 双击复原</p>
+        </div>
+      </section>
+
+      <section class="data-status-panel" aria-label="数据更新状态">
+        <div class="status-topline">
+          <div class="status-message" id="status-message" role="status" aria-live="polite"><span class="status-dot"></span><span id="status-text">正在读取本地静态缓存</span></div>
+          <span class="local-label">LOCAL DATA</span>
+        </div>
+        <div class="update-times">
+          <span>成功抓取 <strong id="fetched-at">—</strong></span>
+          <span>最后尝试 <strong id="attempted-at">—</strong></span>
+          <span>时间均为北京时间 / 香港时间</span>
+        </div>
+        <p class="error-detail" id="error-detail" hidden></p>
+      </section>
+
+      <footer class="notes">
+        <div class="notes-heading">数据与口径</div>
+        <div class="notes-content">
+          <p>数据来自中证指数官网，通过 AKShare 获取指数 000985 的滚动市盈率。最早有效数据为 2011 年，早期存在缺口；缺失值保留为空并在图中断线，不插值、不补零。</p>
+          <p>分位线基于当前所选区间的有效日度 PE 计算；百分位表示其中不高于最新可用 PE 的观测值占比。中证全指是市场指数代理，并非所有股票的市盈率，也不代表个股估值。</p>
+          <p>本页面展示已保存的日度数据，打开页面仅载入本地缓存。只有点击“手动更新数据”才会通过 AKShare 抓取新数据；更新失败时保留已有图表。上游未发布新数据时，数据日期不会变化。历史估值分布仅用于观察，不构成买卖信号。</p>
+        </div>
+      </footer>
+    </main>
+  </body>
+</html>

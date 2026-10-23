@@ -1,0 +1,2 @@
+akshare==1.19.1
+matplotlib==3.11.2
