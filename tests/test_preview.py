@@ -22,6 +22,24 @@ def payload():
 
 
 class PreviewTests(unittest.TestCase):
+    def test_hikvision_preview_uses_its_own_file_title_and_source(self):
+        from PIL import Image
+        data = payload()
+        data["index"] = {"code": "002415", "name": "海康威视"}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs").mkdir()
+            existing = root / "docs" / "pe-history.png"
+            existing.write_bytes(b"CSI image unchanged")
+            render_preview(root, data)
+            self.assertEqual(existing.read_bytes(), b"CSI image unchanged")
+            with Image.open(root / "docs" / "hikvision-pe-history.png") as picture:
+                description = picture.info["Description"]
+                self.assertIn("Hikvision 002415", description)
+                self.assertIn("PE TTM", description)
+                self.assertIn("eastmoney.com", description)
+                self.assertNotIn("csindex.com.cn", description)
+
     def test_creates_readable_png_with_statistics_from_observations(self):
         from PIL import Image
 

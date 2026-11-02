@@ -1,9 +1,18 @@
 "use strict";
 
 (() => {
+  const isHikvision = document.body?.dataset?.instrument === "hikvision";
+  const profile = isHikvision ? {
+    code: "002415", name: "海康威视", metric: "滚动市盈率（PE TTM）", range: "all",
+    data: "/hikvision-data.json", status: "/api/hikvision/status", update: "/api/hikvision/update",
+    sourceName: "公开数据源",
+  } : {
+    code: "000985", name: "中证全指", metric: "滚动市盈率", range: "10",
+    data: "/data.json", status: "/api/status", update: "/api/update", sourceName: "中证指数官网",
+  };
   const state = {
     payload: null,
-    range: "10",
+    range: profile.range,
     updating: false,
     loading: false,
     pollTimer: null,
@@ -76,6 +85,10 @@
     $("q50").textContent = formatPE(q50);
     $("q80").textContent = formatPE(q80);
 
+    const sourceName = state.payload.index?.source_name || profile.sourceName;
+    $("source-link").textContent = `${sourceName} ↗`;
+    const sourceCaption = $("source-name");
+    if (sourceCaption) sourceCaption.textContent = sourceName;
     const sourceURL = state.payload.index?.source_url;
     if (sourceURL) {
       try {
@@ -107,9 +120,9 @@
     const traces = [{
       x: records.map((record) => record.date),
       y: records.map((record) => numeric(record.pe) ? record.pe : null),
-      type: "scatter", mode: "lines", name: "滚动市盈率", connectgaps: false,
+      type: "scatter", mode: "lines", name: profile.metric, connectgaps: false,
       line: { color: "#28654a", width: 1.7 },
-      hovertemplate: "%{x|%Y-%m-%d}<br>滚动市盈率 <b>%{y:.2f} 倍</b><extra></extra>",
+      hovertemplate: `%{x|%Y-%m-%d}<br>${profile.metric} <b>%{y:.2f} 倍</b><extra></extra>`,
     }];
     const layout = {
       autosize: true,
@@ -139,7 +152,7 @@
       });
       state.chartError = null;
       setPlaceholder(null);
-      $("pe-chart").setAttribute("aria-label", `${firstDate} 至 ${lastDate} 中证全指滚动市盈率，${values.length} 个有效值，${missingCount} 个缺失值。最新可用 PE ${formatPE(latest?.pe)} 倍。`);
+      $("pe-chart").setAttribute("aria-label", `${firstDate} 至 ${lastDate} ${profile.name}${profile.metric}，${values.length} 个有效值，${missingCount} 个缺失值。最新可用 PE ${formatPE(latest?.pe)} 倍。`);
     } catch (error) {
       state.chartError = `图表绘制失败：${error.message}`;
       setPlaceholder(state.chartError);
@@ -175,7 +188,7 @@
       detail = state.chartError;
     } else if (state.updating) {
       indicator.classList.add("is-updating");
-      message = "正在从中证指数官网更新 · 继续展示已有数据";
+      message = `正在从${state.payload?.index?.source_name || profile.sourceName}更新 · 继续展示已有数据`;
     } else if (updateError) {
       indicator.classList.add("is-error");
       message = "最近一次抓取失败 · 已保留上次成功数据";
@@ -214,7 +227,9 @@
 
   function validatePayload(payload) {
     if (!payload || !payload.meta || !Array.isArray(payload.records)) throw new Error("本地数据格式无效。");
-    if (String(payload.index?.code) !== "000985") throw new Error("本地缓存的指数代码不是 000985，已拒绝载入。");
+    if (String(payload.index?.code) !== profile.code) throw new Error(`本地缓存的证券代码不是 ${profile.code}，已拒绝载入。`);
+    if (payload.index?.name !== profile.name) throw new Error(`本地缓存的名称不是${profile.name}，已拒绝载入。`);
+    if (isHikvision && !/TTM/i.test(String(payload.index?.metric || ""))) throw new Error("海康威视缓存不是 PE TTM 口径，已拒绝载入。");
     let previous = "";
     for (const record of payload.records) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(record.date) || record.date <= previous) throw new Error("本地数据日期无效或未按日期递增。");
@@ -232,7 +247,7 @@
   async function pollUpdate() {
     state.pollTimer = null;
     try {
-      const result = await requestJSON("/api/status");
+      const result = await requestJSON(profile.status);
       state.serverStatus = result;
       state.updating = Boolean(result.updating);
       state.connectionError = null;
@@ -254,7 +269,7 @@
     state.loading = true;
     state.updateNotice = null;
     try {
-      state.payload = validatePayload(await requestJSON("/data.json"));
+      state.payload = validatePayload(await requestJSON(profile.data));
       state.connectionError = null;
       await renderChart();
     } catch (error) {
@@ -267,6 +282,9 @@
   }
 
   document.querySelectorAll("[data-range]").forEach((button) => {
+    const initiallyActive = button.dataset.range === state.range;
+    button.classList.toggle("is-active", initiallyActive);
+    button.setAttribute("aria-pressed", String(initiallyActive));
     button.addEventListener("click", () => {
       state.range = button.dataset.range;
       document.querySelectorAll("[data-range]").forEach((item) => {
@@ -285,7 +303,7 @@
     state.connectionError = null;
     renderStatus();
     try {
-      const result = await requestJSON("/api/update", { method: "POST" });
+      const result = await requestJSON(profile.update, { method: "POST" });
       if (result.accepted || result.reason === "busy") {
         scheduleUpdatePoll();
       } else if (result.reason === "throttled") {

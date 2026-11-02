@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import io
 import json
 import math
@@ -13,10 +14,20 @@ from pathlib import Path
 # Keep Matplotlib's generated font cache out of the user's global configuration.
 os.environ["MPLCONFIGDIR"] = str(Path(__file__).resolve().parent / ".cache" / "matplotlib")
 
+PROFILES = {
+    "000985": {"title": "中证全指 · 000985", "english": "CSI All Share 000985",
+               "source_cn": "中证指数官网", "source_en": "China Securities Index website",
+               "domain": "csindex.com.cn", "filename": "pe-history.png", "data": "data.json"},
+    "002415": {"title": "海康威视 · 002415", "english": "Hikvision 002415",
+               "source_cn": "东方财富", "source_en": "Eastmoney",
+               "domain": "data.eastmoney.com", "filename": "hikvision-pe-history.png",
+               "data": "hikvision-data.json"},
+}
+
 
 def _observations(payload: dict) -> tuple[list[date], list[float]]:
-    if payload.get("index", {}).get("code") != "000985":
-        raise ValueError("The preview requires CSI All Share index 000985.")
+    if payload.get("index", {}).get("code") not in PROFILES:
+        raise ValueError("Unsupported instrument for the PE preview.")
     dates, values = [], []
     for record in payload.get("records", []):
         try:
@@ -52,12 +63,14 @@ def _chart_font(font_manager):
 
 
 def render_preview(root: Path, payload: dict) -> None:
-    """Atomically replace docs/pe-history.png using all cached observations.
+    """Atomically replace this instrument's PNG using all cached observations.
 
     Invalid input or a rendering/write failure leaves an existing image intact.
     Null P/E observations remain NaN, so Matplotlib breaks the historical line.
     """
     dates, values = _observations(payload)
+    code = payload["index"]["code"]
+    profile = PROFILES[code]
 
     import matplotlib
     matplotlib.use("Agg")
@@ -80,9 +93,10 @@ def render_preview(root: Path, payload: dict) -> None:
         return figure.text(x, y, label, fontproperties=font, fontsize=size,
                            color=color or colors["ink"], **kwargs)
 
-    text(0.075, 0.935, "中证全指 · 000985" if chinese else "CSI ALL SHARE · 000985", 24,
+    text(0.075, 0.935, profile["title"] if chinese else profile["english"], 24,
          weight="bold")
-    text(0.075, 0.884, "滚动市盈率｜全历史观察" if chinese else "ROLLING P/E · FULL HISTORY", 13,
+    text(0.075, 0.884, ("滚动市盈率 PE TTM｜源站全部可用日度历史" if code == "002415" else "滚动市盈率｜全历史观察")
+         if chinese else "ROLLING P/E · AVAILABLE HISTORY", 13,
          color=colors["muted"])
     text(0.075, 0.810,
          f"{dates[0]:%Y-%m-%d} — {dates[-1]:%Y-%m-%d}   ·   "
@@ -127,22 +141,24 @@ def render_preview(root: Path, payload: dict) -> None:
          else "P20 / P50 / P80: quantiles of all valid observations. Missing values remain gaps; no interpolation.",
          10, color=colors["muted"])
     text(0.075, 0.102,
-         "数据源：中证指数官网，经 AKShare 获取 · 日度滚动市盈率 · 手动更新" if chinese
-         else "Source: China Securities Index website via AKShare · Daily rolling P/E · Manual updates", 10,
+         f"数据源：{profile['source_cn']}，经 AKShare 获取 · 日度滚动市盈率 · 手动更新" if chinese
+         else f"Source: {profile['source_en']} via AKShare · Daily rolling P/E · Manual updates", 10,
          color=colors["muted"])
-    text(0.075, 0.061, "csindex.com.cn  /  index 000985", 9, color=colors["muted"])
+    text(0.075, 0.061, profile["domain"] + "  /  " + code + (
+         "  ·  源站可用日度记录，不代表上市以来完整历史" if chinese and code == "002415" else ""),
+         9, color=colors["muted"])
 
     description = (
-        f"CSI All Share 000985 | Rolling P/E | latest={latest_pe:.2f} on {latest_day} | "
+        f"{profile['english']} | Rolling P/E (PE TTM) | latest={latest_pe:.2f} on {latest_day} | "
         f"valid={valid_count}; missing={missing_count} | "
         + "; ".join(f"P{percentile}={value:.2f}" for percentile, value in zip((20, 50, 80), quantiles))
-        + " | Source: csindex.com.cn via AKShare; manual updates; missing values are gaps."
+        + f" | Source: {profile['domain']} via AKShare; manual updates; missing values are gaps."
     )
     buffer = io.BytesIO()
     figure.savefig(buffer, format="png", dpi=160, facecolor=figure.get_facecolor(),
                    metadata={"Software": "ASockPEView", "Description": description})
     figure.clear()
-    destination = Path(root) / "docs" / "pe-history.png"
+    destination = Path(root) / "docs" / profile["filename"]
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:
@@ -159,7 +175,11 @@ def render_preview(root: Path, payload: dict) -> None:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Render a preview from local data without fetching.")
+    parser.add_argument("--symbol", choices=list(PROFILES), default="000985")
+    args = parser.parse_args()
     project_root = Path(__file__).resolve().parent
-    cached = json.loads((project_root / "web" / "data.json").read_text(encoding="utf-8"))
+    profile = PROFILES[args.symbol]
+    cached = json.loads((project_root / "web" / profile["data"]).read_text(encoding="utf-8"))
     render_preview(project_root, cached)
-    print("Generated docs/pe-history.png from local cache.")
+    print(f"Generated docs/{profile['filename']} from local cache.")

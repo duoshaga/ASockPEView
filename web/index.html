@@ -9,7 +9,7 @@
     <script src="/plotly.min.js" defer></script>
     <script src="/app.js" defer></script>
   </head>
-  <body>
+  <body data-instrument="csi">
     <main class="page-shell">
       <header class="page-header">
         <div class="identity">
@@ -20,6 +20,11 @@
         </div>
         <div class="live-badge"><span class="live-dot"></span>静态缓存 · 手动更新</div>
       </header>
+
+      <nav class="instrument-nav" aria-label="选择估值对象">
+        <a href="/" aria-current="page">中证全指 <span>000985</span></a>
+        <a href="/hikvision.html">海康威视 <span>002415</span></a>
+      </nav>
 
       <section class="intro" aria-labelledby="page-title">
         <div>
@@ -106,7 +111,7 @@
         <p class="error-detail" id="error-detail" hidden></p>
       </section>
 
-      <footer class="notes">
+      <footer class="notes" id="data-notes">
         <div class="notes-heading">数据与口径</div>
         <div class="notes-content">
           <p>数据来自中证指数官网，通过 AKShare 获取指数 000985 的滚动市盈率。最早有效数据为 2011 年，早期存在缺口；缺失值保留为空并在图中断线，不插值、不补零。</p>

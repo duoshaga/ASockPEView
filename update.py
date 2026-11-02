@@ -1,4 +1,5 @@
 """Run once to refresh the locally cached chart data."""
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -6,6 +7,12 @@ from data_pipeline import update
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
+    parser = argparse.ArgumentParser(description="Manually update one instrument's cached PE history.")
+    parser.add_argument("--symbol", choices=["000985", "002415"], default="000985")
+    args = parser.parse_args()
+    if args.symbol == "002415":
+        from hikvision_pipeline import update_hikvision
+        update = update_hikvision
     try:
         payload = update(Path(__file__).resolve().parent)
         print(json.dumps(payload["meta"], ensure_ascii=False, indent=2))
